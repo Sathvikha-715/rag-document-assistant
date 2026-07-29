@@ -1,11 +1,10 @@
 import os
-import sys
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from src.prompts import RAG_PROMPT
 
 # -----------------------------
-# Load environment and validate
+# Load environment
 # -----------------------------
 load_dotenv()
 
@@ -13,7 +12,7 @@ api_key = os.getenv("GROQ_API_KEY")
 
 if not api_key:
     raise ValueError(
-        "GROQ_API_KEY not found. Add it to your .env file as:\n"
+        "GROQ_API_KEY not found. Add it to your .env file as:\\n"
         "GROQ_API_KEY=your_api_key_here"
     )
 
@@ -29,24 +28,21 @@ llm = ChatGroq(
 
 def ask_question(vectorstore, question, k=4):
     """
-    Retrieves relevant chunks from the vectorstore and generates
-    a grounded answer using the LLM.
-
-    Args:
-        vectorstore: The Chroma vectorstore to search.
-        question: The user's question as a string.
-        k: Number of top relevant chunks to retrieve.
-
-    Returns:
-        Tuple of (answer: str, docs: list) — the generated answer
-        and the source documents used to ground it.
+    Ask a question against the vector store and return
+    a grounded answer with source documents.
     """
 
     if not question or not question.strip():
         return "Please enter a valid question.", []
 
     try:
-        docs = vectorstore.similarity_search(question, k=k)
+        # New LangChain retrieval API
+        retriever = vectorstore.as_retriever(
+            search_kwargs={"k": k}
+        )
+
+        docs = retriever.invoke(question)
+
     except Exception as e:
         return f"Error retrieving relevant content: {e}", []
 
@@ -57,14 +53,27 @@ def ask_question(vectorstore, question, k=4):
             []
         )
 
-    context = "\n\n".join(doc.page_content for doc in docs)
+    # Remove empty chunks
+    context = "\\n\\n".join(
+        doc.page_content.strip()
+        for doc in docs
+        if doc.page_content.strip()
+    )
+
+    if not context:
+        return (
+            "The retrieved sections contained no readable text.",
+            docs
+        )
 
     try:
         prompt = RAG_PROMPT.invoke({
             "context": context,
             "question": question
         })
+
         response = llm.invoke(prompt)
+
     except Exception as e:
         return f"Error generating answer: {e}", docs
 

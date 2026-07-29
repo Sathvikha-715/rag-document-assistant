@@ -11,7 +11,8 @@ def create_vectorstore(chunks):
 
     if not chunks:
         raise ValueError(
-            "No text could be extracted from the uploaded PDF."
+            "No readable text was found in the PDF. "
+            "Please upload a text-based PDF."
         )
 
     embeddings = HuggingFaceEmbeddings(
@@ -28,6 +29,9 @@ def create_vectorstore(chunks):
 
 
 def load_vectorstore():
+    """
+    Load an existing Chroma database.
+    """
 
     embeddings = HuggingFaceEmbeddings(
         model_name=EMBEDDING_MODEL
