@@ -11,5 +11,7 @@ sentence-transformers
 transformers
 torch
 torchvision
-pypdf
+pymupdf
+easyocr
+pillow
 python-dotenv

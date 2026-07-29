@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from src.prompts import RAG_PROMPT
-
+from pydantic import SecretStr
 # -----------------------------
 # Load environment
 # -----------------------------
@@ -21,7 +21,7 @@ if not api_key:
 # -----------------------------
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
-    api_key=api_key,
+    api_key=SecretStr(api_key),
     temperature=0.3
 )
 
