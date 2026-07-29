@@ -1,11 +1,18 @@
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
-
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def create_vectorstore(chunks):
+    """
+    Create a Chroma vector database from document chunks.
+    """
+
+    if not chunks:
+        raise ValueError(
+            "No text could be extracted from the uploaded PDF."
+        )
 
     embeddings = HuggingFaceEmbeddings(
         model_name=EMBEDDING_MODEL
@@ -26,9 +33,7 @@ def load_vectorstore():
         model_name=EMBEDDING_MODEL
     )
 
-    vectorstore = Chroma(
+    return Chroma(
         persist_directory="chroma_db",
         embedding_function=embeddings
     )
-
-    return vectorstore

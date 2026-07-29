@@ -1,8 +1,15 @@
+import os
 import streamlit as st
 from src.loader import load_pdf
 from src.splitter import split_documents
 from src.vectorstore import create_vectorstore
 from src.rag_chain import ask_question
+
+# -----------------------------
+# Avatars
+# -----------------------------
+USER_AVATAR = "https://api.dicebear.com/7.x/notionists/svg?seed=Sathvikha"
+BOT_AVATAR = "https://api.dicebear.com/7.x/bottts/svg?seed=DocMind"
 
 # -----------------------------
 # Page Config
@@ -15,7 +22,7 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Custom CSS — the visual upgrade
+# Custom CSS
 # -----------------------------
 st.markdown("""
     <style>
@@ -25,7 +32,6 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
 
-    /* Hero header */
     .hero {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 2.2rem 2rem;
@@ -46,7 +52,6 @@ st.markdown("""
         margin-top: 0.4rem;
     }
 
-    /* Sidebar */
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
     }
@@ -65,7 +70,6 @@ st.markdown("""
         transform: scale(1.03);
     }
 
-    /* Status badges */
     .status-badge {
         padding: 6px 14px;
         border-radius: 20px;
@@ -85,7 +89,6 @@ st.markdown("""
         border: 1px solid rgba(255,255,255,0.15);
     }
 
-    /* Chat bubbles */
     .stChatMessage {
         border-radius: 16px;
         padding: 0.3rem;
@@ -96,13 +99,11 @@ st.markdown("""
         to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Source expander */
     .stExpander {
         border-radius: 10px !important;
         border: 1px solid rgba(118, 75, 162, 0.2) !important;
     }
 
-    /* Empty state card */
     .empty-card {
         background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08));
         border: 1px dashed rgba(118,75,162,0.35);
@@ -116,7 +117,6 @@ st.markdown("""
         color: #764ba2;
     }
 
-    /* Metric pills in sidebar */
     .pill-row {
         display: flex;
         gap: 8px;
@@ -177,25 +177,48 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
+    # Process only if a NEW file was uploaded
     if uploaded_file and uploaded_file.name != st.session_state.processed_file:
-        with open(f"docs/{uploaded_file.name}", "wb") as f:
-            f.write(uploaded_file.read())
 
-        progress = st.progress(0, text="📖 Reading document...")
-        docs = load_pdf(f"docs/{uploaded_file.name}")
-        progress.progress(35, text="✂️ Splitting into chunks...")
+        os.makedirs("docs", exist_ok=True)
+        file_path = os.path.join("docs", uploaded_file.name)
 
-        chunks = split_documents(docs)
-        progress.progress(70, text="🧠 Creating embeddings...")
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
 
-        vectorstore = create_vectorstore(chunks)
-        progress.progress(100, text="✅ Ready!")
+        try:
+            progress = st.progress(0, text="📖 Reading document...")
+            docs = load_pdf(file_path)
 
-        st.session_state.vectorstore = vectorstore
-        st.session_state.processed_file = uploaded_file.name
-        st.session_state.chunk_count = len(chunks)
-        st.balloons()
+            if len(docs) == 0:
+                st.error("The uploaded PDF could not be read.")
+                st.stop()
 
+            progress.progress(35, text="✂️ Splitting into chunks...")
+            chunks = split_documents(docs)
+
+            if len(chunks) == 0:
+                st.error(
+                    "This PDF contains no readable text. "
+                    "Scanned/image PDFs are not supported."
+                )
+                st.stop()
+
+            progress.progress(70, text="🧠 Creating embeddings...")
+            vectorstore = create_vectorstore(chunks)
+            progress.progress(100, text="✅ Ready!")
+
+            st.session_state.vectorstore = vectorstore
+            st.session_state.processed_file = uploaded_file.name
+            st.session_state.chunk_count = len(chunks)
+
+            st.balloons()
+
+        except Exception as e:
+            st.error(f"Error processing document: {e}")
+            st.stop()
+
+    # This block now runs on EVERY rerun, not just after upload — shows correct status always
     st.markdown("---")
 
     if st.session_state.vectorstore is not None:
@@ -257,7 +280,7 @@ if not st.session_state.messages:
         """, unsafe_allow_html=True)
 
 for message in st.session_state.messages:
-    avatar = "🧑" if message["role"] == "user" else "🧠"
+    avatar = USER_AVATAR if message["role"] == "user" else BOT_AVATAR
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
         if message["role"] == "assistant" and message.get("sources"):
@@ -275,14 +298,18 @@ if question:
         st.stop()
 
     st.session_state.messages.append({"role": "user", "content": question})
-    with st.chat_message("user", avatar="🧑"):
+    with st.chat_message("user", avatar=USER_AVATAR):
         st.markdown(question)
 
-    with st.chat_message("assistant", avatar="🧠"):
+    with st.chat_message("assistant", avatar=BOT_AVATAR):
         with st.spinner("Thinking..."):
-            answer, docs = ask_question(st.session_state.vectorstore, question)
-            pages = sorted(set(doc.metadata["page"] + 1 for doc in docs))
-            sources = ", ".join(f"Page {p}" for p in pages)
+            try:
+                answer, docs = ask_question(st.session_state.vectorstore, question)
+                pages = sorted(set(doc.metadata["page"] + 1 for doc in docs))
+                sources = ", ".join(f"Page {p}" for p in pages)
+            except Exception as e:
+                st.error(f"Error generating answer: {e}")
+                st.stop()
 
         st.markdown(answer)
         with st.expander("📄 View Sources"):
