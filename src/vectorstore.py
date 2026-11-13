@@ -1,43 +1,29 @@
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
+import uuid
+from langchain_community.vectorstores import Chroma
+from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+_embeddings = None
+
+
+def get_embeddings():
+    """Load the embedding model once and reuse it for every upload."""
+    global _embeddings
+    if _embeddings is None:
+        _embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+    return _embeddings
 
 
 def create_vectorstore(chunks):
     """
-    Create a Chroma vector database from document chunks.
+    Build a FRESH in-memory vector store for each uploaded document.
+
+    - No persist_directory, so nothing is reloaded from an old database.
+    - A unique collection name, so chunks from different PDFs never mix.
     """
-
-    if not chunks:
-        raise ValueError(
-            "No readable text was found in the PDF. "
-            "Please upload a text-based PDF."
-        )
-
-    embeddings = HuggingFaceEmbeddings(
-        model_name=EMBEDDING_MODEL
-    )
-
-    vectorstore = Chroma.from_documents(
+    return Chroma.from_documents(
         documents=chunks,
-        embedding=embeddings,
-        persist_directory="chroma_db"
-    )
-
-    return vectorstore
-
-
-def load_vectorstore():
-    """
-    Load an existing Chroma database.
-    """
-
-    embeddings = HuggingFaceEmbeddings(
-        model_name=EMBEDDING_MODEL
-    )
-
-    return Chroma(
-        persist_directory="chroma_db",
-        embedding_function=embeddings
+        embedding=get_embeddings(),
+        collection_name=f"doc_{uuid.uuid4().hex}",
     )

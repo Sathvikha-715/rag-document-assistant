@@ -1,4 +1,5 @@
 import os
+import hashlib
 import streamlit as st
 from src.loader import load_pdf
 from src.splitter import split_documents
@@ -164,6 +165,8 @@ if "processed_file" not in st.session_state:
     st.session_state.processed_file = None
 if "chunk_count" not in st.session_state:
     st.session_state.chunk_count = 0
+if "file_hash" not in st.session_state:
+    st.session_state.file_hash = None
 
 # -----------------------------
 # Sidebar
@@ -177,11 +180,17 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
-    # Process only if a NEW file was uploaded
-    if uploaded_file and uploaded_file.name != st.session_state.processed_file:
+    # Identify the file by its CONTENT, not its name
+    file_hash = (
+        hashlib.md5(uploaded_file.getvalue()).hexdigest()
+        if uploaded_file else None
+    )
+
+    # Process only if a NEW file (different content) was uploaded
+    if uploaded_file and file_hash != st.session_state.file_hash:
 
         os.makedirs("docs", exist_ok=True)
-        file_path = os.path.join("docs", uploaded_file.name)
+        file_path = os.path.join("docs", f"{file_hash}.pdf")
 
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
@@ -211,6 +220,8 @@ with st.sidebar:
             st.session_state.vectorstore = vectorstore
             st.session_state.processed_file = uploaded_file.name
             st.session_state.chunk_count = len(chunks)
+            st.session_state.file_hash = file_hash
+            st.session_state.messages = []  # clear chat from the previous document
 
             st.balloons()
 
@@ -218,7 +229,7 @@ with st.sidebar:
             st.error(f"Error processing document: {e}")
             st.stop()
 
-    # This block now runs on EVERY rerun, not just after upload — shows correct status always
+    # Runs on EVERY rerun, so the status is always correct
     st.markdown("---")
 
     if st.session_state.vectorstore is not None:
@@ -249,6 +260,7 @@ with st.sidebar:
         if st.button("🔄 Reset", use_container_width=True):
             st.session_state.vectorstore = None
             st.session_state.processed_file = None
+            st.session_state.file_hash = None
             st.session_state.messages = []
             st.session_state.chunk_count = 0
             st.rerun()
@@ -305,15 +317,20 @@ if question:
         with st.spinner("Thinking..."):
             try:
                 answer, docs = ask_question(st.session_state.vectorstore, question)
-                pages = sorted(set(doc.metadata["page"] + 1 for doc in docs))
+                pages = sorted(set(doc.metadata.get("page", 0) + 1 for doc in docs))
                 sources = ", ".join(f"Page {p}" for p in pages)
             except Exception as e:
                 st.error(f"Error generating answer: {e}")
                 st.stop()
 
+                refused = "couldn't find" in answer.lower()
+        if refused:
+            sources = ""
+
         st.markdown(answer)
-        with st.expander("📄 View Sources"):
-            st.caption(sources)
+        if sources:
+            with st.expander("📄 View Sources"):
+                st.caption(sources)
 
     st.session_state.messages.append({
         "role": "assistant",
