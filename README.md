@@ -1,6 +1,6 @@
 # DocMind AI – RAG-Based Document Assistant
 
-DocMind AI is a Retrieval-Augmented Generation (RAG) application that allows users to upload PDF documents and ask natural language questions about their contents. The application retrieves the most relevant document sections using semantic search and generates grounded responses with source citations using Groq's Llama 3 model.
+DocMind AI is a Retrieval-Augmented Generation (RAG) application that lets users upload a PDF and ask natural language questions about it. It retrieves the most relevant sections using semantic search and answers only from the document, with page citations. If the answer isn't in the document, it says so instead of guessing.
 
 ## Live Demo
 
@@ -14,12 +14,14 @@ https://github.com/Sathvikha-715/rag-document-assistant
 
 ## Features
 
-- Upload and process PDF documents
+- Upload and process any PDF (a fresh index is built per file, so documents never get mixed up)
 - Semantic search using vector embeddings
-- Context-aware question answering
+- Context-aware question answering grounded in the document
 - Source page citations
-- Fast retrieval with ChromaDB
-- Interactive Streamlit interface
+- Refuses out-of-document questions instead of guessing
+- Broader retrieval for summary and list-style questions
+- OCR fallback for scanned PDFs (local runs)
+- Interactive Streamlit interface with chat history
 
 ---
 
@@ -28,21 +30,40 @@ https://github.com/Sathvikha-715/rag-document-assistant
 - Python
 - Streamlit
 - LangChain
-- Groq (Llama 3)
+- Groq (gpt-oss-120b)
 - HuggingFace Embeddings (all-MiniLM-L6-v2)
 - ChromaDB
-- PyPDFLoader
+- PyMuPDF (with EasyOCR fallback for scanned PDFs)
 
 ---
 
 ## How It Works
 
 1. Upload a PDF document.
-2. Extract and split the text into chunks.
-3. Generate embeddings and store them in ChromaDB.
-4. Retrieve relevant chunks based on the user's query.
-5. Generate a grounded response using Groq's Llama 3.
-6. Display the answer along with source page citations.
+2. Extract the text (OCR is used if the PDF is scanned) and split it into chunks.
+3. Generate embeddings and store them in a fresh ChromaDB collection.
+4. Retrieve the most relevant chunks for the user's question.
+5. Generate an answer using only those chunks.
+6. Display the answer with source page citations, or a refusal if the document has no answer.
+
+---
+
+## Evaluation
+
+Tested on a 24-question set built from one 6-page research paper (22 document questions and 2 off-topic questions that should be refused).
+
+| Metric | Result |
+|---|---|
+| Answer accuracy | 24/24 |
+| Page-citation hit | 21/21 |
+| Average response time | 5.9 s |
+
+**Limitations**
+
+- Answers are scored by keyword matching, so this is a quick check, not a full RAG evaluation.
+- Only one document was tested. I tuned retrieval after finding failures (for example, a "list all tools" question that first missed items), so the score is a best case.
+- Questions that need every item from a long section can still miss items.
+- Response time depends on the Groq model and the amount of text retrieved.
 
 ---
 
@@ -67,6 +88,7 @@ Create a `.env` file:
 
 ```env
 GROQ_API_KEY=your_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
 Run the application:
@@ -75,6 +97,16 @@ Run the application:
 streamlit run app.py
 ```
 
+**Optional: scanned PDFs.** Install OCR support locally with `pip install easyocr`. It is left out of the deployed version because it is large.
+
+---
+
+## Run the Evaluation
+
+1. Put a PDF in the project folder.
+2. Set `PDF_PATH` in `test_eval.py` to that file. The questions are written for a data analysis paper, so edit them for a different PDF.
+3. Run `python test_eval.py`.
+
 ---
 
 ## Project Structure
@@ -82,10 +114,14 @@ streamlit run app.py
 ```text
 rag-document-assistant/
 │
-├── app.py
+├── app.py            # Streamlit interface
 ├── src/
-├── docs/
-├── chroma_db/
+│   ├── loader.py     # PDF text extraction + OCR fallback
+│   ├── splitter.py   # Chunking
+│   ├── vectorstore.py# Embeddings + ChromaDB
+│   ├── prompts.py    # Answer rules
+│   └── rag_chain.py  # Retrieval + LLM call
+├── test_eval.py      # Evaluation script
 ├── requirements.txt
 └── README.md
 ```
@@ -94,10 +130,11 @@ rag-document-assistant/
 
 ## Future Improvements
 
-- Multiple PDF support
-- Conversation memory
+- Hybrid search (keyword + vector) and reranking
+- Evaluation with RAGAS
+- Conversation memory for follow-up questions
+- Querying several PDFs at once
 - Docker containerization
-- OCR support for scanned PDFs
 
 ---
 
@@ -105,6 +142,6 @@ rag-document-assistant/
 
 **Sathvikha Reddy**
 
-B.Tech – Artificial Intelligence and Data Science
+B.E. – Artificial Intelligence and Data Science
 
 GitHub: https://github.com/Sathvikha-715
