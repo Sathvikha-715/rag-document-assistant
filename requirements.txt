@@ -9,9 +9,6 @@ langchain-huggingface
 chromadb
 sentence-transformers
 transformers
-torch
-torchvision
 pymupdf
-easyocr
 pillow
 python-dotenv
