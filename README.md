@@ -12,14 +12,28 @@ https://github.com/Sathvikha-715/rag-document-assistant
 
 ---
 
+## Screenshots
+
+### Grounded answer with page citations
+![Answer with sources](screenshots/answer.png)
+
+### Refuses questions the document can't answer
+![Refusal on an off-topic question](screenshots/refusal.png)
+
+### List question across several pages
+![List question](screenshots/list.png)
+
+---
+
 ## Features
 
 - Upload and process any PDF (a fresh index is built per file, so documents never get mixed up)
 - Semantic search using vector embeddings
 - Context-aware question answering grounded in the document
-- Source page citations
+- Source page citations chosen by matching the generated answer back to the document
 - Refuses out-of-document questions instead of guessing
 - Broader retrieval for summary and list-style questions
+- Handles empty model responses with an automatic retry
 - OCR fallback for scanned PDFs (local runs)
 - Interactive Streamlit interface with chat history
 
@@ -56,13 +70,14 @@ Tested on a 24-question set built from one 6-page research paper (22 document qu
 |---|---|
 | Answer accuracy | 24/24 |
 | Page-citation hit | 21/21 |
-| Average response time | 5.9 s |
+| Average response time | 6.1 s |
 
 **Limitations**
 
 - Answers are scored by keyword matching, so this is a quick check, not a full RAG evaluation.
-- Only one document was tested. I tuned retrieval after finding failures (for example, a "list all tools" question that first missed items), so the score is a best case.
+- Only one document was tested. I tuned retrieval and citations after finding failures (for example, a "list all tools" question that first missed items), so the score is a best case.
 - Questions that need every item from a long section can still miss items.
+- Page numbers refer to PDF page order, not the printed page numbers.
 - Response time depends on the Groq model and the amount of text retrieved.
 
 ---
@@ -114,14 +129,15 @@ streamlit run app.py
 ```text
 rag-document-assistant/
 │
-├── app.py            # Streamlit interface
+├── app.py             # Streamlit interface
 ├── src/
-│   ├── loader.py     # PDF text extraction + OCR fallback
-│   ├── splitter.py   # Chunking
-│   ├── vectorstore.py# Embeddings + ChromaDB
-│   ├── prompts.py    # Answer rules
-│   └── rag_chain.py  # Retrieval + LLM call
-├── test_eval.py      # Evaluation script
+│   ├── loader.py      # PDF text extraction + OCR fallback
+│   ├── splitter.py    # Chunking
+│   ├── vectorstore.py # Embeddings + ChromaDB
+│   ├── prompts.py     # Answer rules
+│   └── rag_chain.py   # Retrieval, answer generation, citations
+├── screenshots/       # README images
+├── test_eval.py       # Evaluation script
 ├── requirements.txt
 └── README.md
 ```
