@@ -323,10 +323,6 @@ if question:
                 st.error(f"Error generating answer: {e}")
                 st.stop()
 
-                refused = "couldn't find" in answer.lower()
-        if refused:
-            sources = ""
-
         st.markdown(answer)
         if sources:
             with st.expander("📄 View Sources"):
